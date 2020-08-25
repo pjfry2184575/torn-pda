@@ -52,6 +52,7 @@ class SharedPreferencesModel {
   final String _kLootAlarmSound = "pda_lootAlarmSound";
   final String _kTradeCalculatorEnabled = "pda_tradeCalculatorActive";
   final String _kCityFinderEnabled = "pda_cityFinderActive";
+  final String _kCompanyBossLastCheck = "pda_companyBossLastCheck";
 
 
   /// This is use for transitioning from v1.2.0 onwards. After 1.2.0, use
@@ -605,6 +606,19 @@ class SharedPreferencesModel {
   Future<bool> setCityEnabled(bool value) async {
     final SharedPreferences prefs = await SharedPreferences.getInstance();
     return prefs.setBool(_kCityFinderEnabled, value);
+  }
+
+  /// ----------------------------
+  /// Methods for Company
+  /// ----------------------------
+  Future<int> getCompanyBossLastCheck() async {
+    final SharedPreferences prefs = await SharedPreferences.getInstance();
+    return prefs.getInt(_kCompanyBossLastCheck) ?? 0;
+  }
+
+  Future<bool> setCompanyBossLastCheck(int value) async {
+    final SharedPreferences prefs = await SharedPreferences.getInstance();
+    return prefs.setInt(_kCompanyBossLastCheck, value);
   }
 
 

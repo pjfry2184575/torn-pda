@@ -13,6 +13,7 @@ class OwnProfileModel {
     // For state management
     this.userApiKey = '',
     this.userApiKeyValid = false,
+    this.isCompanyBoss = false,
 
     this.rank,
     this.level,
@@ -51,6 +52,7 @@ class OwnProfileModel {
   // For state management
   String userApiKey;
   bool userApiKeyValid;
+  bool isCompanyBoss;
 
   String rank;
   int level;
@@ -88,6 +90,7 @@ class OwnProfileModel {
   factory OwnProfileModel.fromJson(Map<String, dynamic> json) => OwnProfileModel(
     userApiKey: json["userApiKey"] == null ? '' : json["userApiKey"],
     userApiKeyValid: json["userApiKeyValid"] == null ? false : json["userApiKeyValid"],
+    isCompanyBoss: json["isCompanyBoss"] == null ? false : json["isCompanyBoss"],
 
     rank: json["rank"] == null ? null : json["rank"],
     level: json["level"] == null ? null : json["level"],
@@ -126,6 +129,7 @@ class OwnProfileModel {
   Map<String, dynamic> toJson() => {
     "userApiKey": userApiKey == null ? null : userApiKey,
     "userApiKeyValid": userApiKeyValid == null ? null : userApiKeyValid,
+    "isCompanyBoss": isCompanyBoss == null ? null : isCompanyBoss,
 
     "rank": rank == null ? null : rank,
     "level": level == null ? null : level,

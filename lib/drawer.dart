@@ -9,6 +9,7 @@ import 'package:provider/provider.dart';
 import 'package:torn_pda/pages/about.dart';
 import 'package:torn_pda/pages/alerts.dart';
 import 'package:torn_pda/pages/chaining_page.dart';
+import 'package:torn_pda/pages/company_page.dart';
 import 'package:torn_pda/pages/friends_page.dart';
 import 'package:torn_pda/pages/loot.dart';
 import 'package:torn_pda/pages/profile_page.dart';
@@ -33,8 +34,10 @@ class DrawerPage extends StatefulWidget {
 }
 
 class _DrawerPageState extends State<DrawerPage> with WidgetsBindingObserver {
-  int _settingsPosition = 6;
-  int _aboutPosition = 7;
+  final int _settingsPosition = 7;
+  final int _aboutPosition = 8;
+  final int _companyPosition = 6;
+
   var _allowSectionsWithoutKey = [];
 
   final _drawerItemsList = [
@@ -44,6 +47,7 @@ class _DrawerPageState extends State<DrawerPage> with WidgetsBindingObserver {
     "Loot",
     "Friends",
     "Alerts",
+    "Company",
     "Settings",
     "About",
   ];
@@ -99,8 +103,9 @@ class _DrawerPageState extends State<DrawerPage> with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if(state == AppLifecycleState.resumed){
+    if (state == AppLifecycleState.resumed) {
       _updateLastActiveTime();
+      _assessIfCompanyBoss();
     }
   }
 
@@ -303,9 +308,7 @@ class _DrawerPageState extends State<DrawerPage> with WidgetsBindingObserver {
                   children: <Widget>[
                     Flexible(
                       child: Text(
-                        _themeProvider.currentTheme == AppTheme.light
-                            ? 'Light'
-                            : 'Dark',
+                        _themeProvider.currentTheme == AppTheme.light ? 'Light' : 'Dark',
                       ),
                     ),
                     Padding(
@@ -313,9 +316,7 @@ class _DrawerPageState extends State<DrawerPage> with WidgetsBindingObserver {
                     ),
                     Flexible(
                       child: Switch(
-                        value: _themeProvider.currentTheme == AppTheme.dark
-                            ? true
-                            : false,
+                        value: _themeProvider.currentTheme == AppTheme.dark ? true : false,
                         onChanged: (bool value) {
                           if (value) {
                             _themeProvider.changeTheme = AppTheme.dark;
@@ -346,16 +347,13 @@ class _DrawerPageState extends State<DrawerPage> with WidgetsBindingObserver {
             selectedColor: Colors.red,
             iconColor: _themeProvider.mainText,
             child: Ink(
-              color:
-                  position == _selected ? Colors.grey[300] : Colors.transparent,
+              color: position == _selected ? Colors.grey[300] : Colors.transparent,
               child: ListTile(
                 leading: _returnDrawerIcons(drawerPosition: position),
                 title: Text(
                   _drawerItemsList[position],
                   style: TextStyle(
-                    fontWeight: position == _selected
-                        ? FontWeight.bold
-                        : FontWeight.normal,
+                    fontWeight: position == _selected ? FontWeight.bold : FontWeight.normal,
                   ),
                 ),
                 selected: position == _selected,
@@ -372,6 +370,13 @@ class _DrawerPageState extends State<DrawerPage> with WidgetsBindingObserver {
         if (i == _settingsPosition) {
           drawerOptions.add(Divider());
         }
+        // If not company boss, don't add the tile
+        if (i == _companyPosition) {
+          if (!_userProvider.myUser.isCompanyBoss) {
+            drawerOptions.add(SizedBox.shrink());
+            continue;
+          }
+        }
         drawerOptions.add(
           ListTileTheme(
             selectedColor: Colors.red,
@@ -383,8 +388,7 @@ class _DrawerPageState extends State<DrawerPage> with WidgetsBindingObserver {
                 title: Text(
                   _drawerItemsList[i],
                   style: TextStyle(
-                    fontWeight:
-                        i == _selected ? FontWeight.bold : FontWeight.normal,
+                    fontWeight: i == _selected ? FontWeight.bold : FontWeight.normal,
                   ),
                 ),
                 selected: i == _selected,
@@ -419,9 +423,12 @@ class _DrawerPageState extends State<DrawerPage> with WidgetsBindingObserver {
         return AlertsSettings();
         break;
       case 6:
-        return SettingsPage();
+        return CompanyPage();
         break;
       case 7:
+        return SettingsPage();
+        break;
+      case 8:
         return AboutPage();
         break;
 
@@ -451,9 +458,12 @@ class _DrawerPageState extends State<DrawerPage> with WidgetsBindingObserver {
         return Icon(Icons.notifications_active);
         break;
       case 6:
-        return Icon(Icons.settings);
+        return Icon(MdiIcons.factoryIcon);
         break;
       case 7:
+        return Icon(Icons.settings);
+        break;
+      case 8:
         return Icon(Icons.info_outline);
         break;
       default:
@@ -497,8 +507,7 @@ class _DrawerPageState extends State<DrawerPage> with WidgetsBindingObserver {
         FirebaseUser mFirebaseUser = await firebaseAuth.signInAnon();
         firestore.setUID(mFirebaseUser.uid);
         await firestore.uploadUsersProfileDetail(_userProvider.myUser);
-        await firestore
-            .uploadLastActiveTime(DateTime.now().millisecondsSinceEpoch);
+        await firestore.uploadLastActiveTime(DateTime.now().millisecondsSinceEpoch);
       } else {
         var uid = await firebaseAuth.getUID();
         firestore.setUID(uid);
@@ -507,6 +516,21 @@ class _DrawerPageState extends State<DrawerPage> with WidgetsBindingObserver {
       // Update last used time in Firebase when the app opens (we'll do the same in onResumed,
       // since some people might leave the app opened for weeks in the background)
       _updateLastActiveTime();
+
+      // If we are a company boss, we'll show the company section
+      await _userProvider.assessIfCompanyBoss();
+    }
+  }
+
+  _assessIfCompanyBoss() async {
+    // We'll check again in onResume (in case someone changes boss position with the app open,
+    // but only every 10 minutes)
+    int lastCheckTimeStamp = await SharedPreferencesModel().getCompanyBossLastCheck();
+    DateTime lastCheckTime = DateTime.fromMillisecondsSinceEpoch(lastCheckTimeStamp);
+    var diff = DateTime.now().difference(lastCheckTime);
+    if (diff.inMinutes > 10) {
+      _userProvider.assessIfCompanyBoss();
+      SharedPreferencesModel().setCompanyBossLastCheck(DateTime.now().millisecondsSinceEpoch);
     }
   }
 
