@@ -1,9 +1,11 @@
 import 'dart:async';
+import 'package:expandable/expandable.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:torn_pda/models/company/company_model.dart';
 import 'package:torn_pda/providers/user_details_provider.dart';
 import 'package:torn_pda/utils/api_caller.dart';
+import 'package:torn_pda/utils/html_parser.dart';
 import '../main.dart';
 
 class CompanyPage extends StatefulWidget {
@@ -12,13 +14,12 @@ class CompanyPage extends StatefulWidget {
 }
 
 class _CompanyPageState extends State<CompanyPage> {
-
   CompanyModel _company;
   DateTime _timeStamp;
 
   UserDetailsProvider _userProvider;
 
-  Future _apiResult;
+  Future _apiFetched;
   bool _apiGoodData = false;
   int _apiErrorType = 0;
   int _apiRetries = 0;
@@ -28,8 +29,8 @@ class _CompanyPageState extends State<CompanyPage> {
   void initState() {
     super.initState();
     _userProvider = Provider.of<UserDetailsProvider>(context, listen: false);
-    _apiResult = _fetchApi();
-    _tickerCallApi = new Timer.periodic(Duration(seconds: 30), (Timer t) => _fetchApi());
+    _apiFetched = _fetchApi();
+    _tickerCallApi = new Timer.periodic(Duration(seconds: 45), (Timer t) => _fetchApi());
     analytics.logEvent(name: 'section_changed', parameters: {'section': 'company'});
   }
 
@@ -52,22 +53,38 @@ class _CompanyPageState extends State<CompanyPage> {
           },
         ),
       ),
-      body: FutureBuilder(
-          future: _apiResult,
+      body: Container(
+        child: FutureBuilder(
+          future: _apiFetched,
           builder: (BuildContext context, AsyncSnapshot<dynamic> snapshot) {
             if (snapshot.connectionState == ConnectionState.done) {
-              if (snapshot.data is CompanyModel) {
-                return Column(
-                  children: [
-                    Padding(
-                      padding: EdgeInsets.all(20),
-                      child: Text("OK",
-                        style: Theme.of(context).textTheme.bodyText2.copyWith(
-                          height: 1.3,
+              if (_apiGoodData) {
+                return SingleChildScrollView(
+                  child: Column(
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(20, 30, 20, 10),
+                        child: Column(
+                          children: [
+                            Text(
+                              HtmlParser.fix(_company.company.name),
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 16,
+                              ),
+                            ),
+                            SizedBox(height: 5),
+                            _starRating(),
+                          ],
                         ),
                       ),
-                    ),
-                  ],
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(20, 10, 20, 5),
+                        child: _employees(),
+                      ),
+                      SizedBox(height: 50),
+                    ],
+                  ),
                 );
               } else {
                 return _connectError();
@@ -75,7 +92,110 @@ class _CompanyPageState extends State<CompanyPage> {
             } else {
               return Center(child: CircularProgressIndicator());
             }
-          }),
+          },
+        ),
+      ),
+    );
+  }
+
+  Container _starRating() {
+    return Container(
+      width: 55,
+      height: 25,
+      padding: EdgeInsets.all(0),
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(10),
+        color: Colors.yellow[800],
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Text(_company.company.rating.toString(),
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 15,
+                fontWeight: FontWeight.bold,
+              )),
+          SizedBox(width: 5),
+          Icon(
+            Icons.star,
+            color: Colors.white,
+            size: 16,
+          )
+        ],
+      ),
+    );
+  }
+
+  Card _employees() {
+    var employeeLines = List<Widget>();
+    int employeesOffline24Hours = 0;
+
+    _company.company.employees.forEach((key, value) {
+      var lastConnected = DateTime.fromMillisecondsSinceEpoch(value.lastAction.timestamp * 1000);
+      var diffTime = DateTime.now().difference(lastConnected);
+
+      Color diffColor = Colors.green;
+      if (diffTime.inHours > 18) {
+        employeesOffline24Hours++;
+        diffColor = Colors.red;
+      } else if (diffTime.inHours > 18) {
+        diffColor = Colors.orange[700];
+      }
+
+      employeeLines.add(
+        Padding(
+          padding: const EdgeInsets.only(top: 5, bottom: 2),
+          child: Row(
+            children: <Widget>[
+              SizedBox(
+                width: 120,
+                child: Text(
+                  value.name,
+                ),
+              ),
+              Text(
+                value.lastAction.relative,
+                style: TextStyle(
+                  color: diffColor,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    });
+
+    return Card(
+      child: ExpandablePanel(
+        header: Padding(
+          padding: const EdgeInsets.all(15.0),
+          child: Text(
+            'EMPLOYEES',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ),
+        collapsed: Padding(
+          padding: const EdgeInsets.fromLTRB(25, 5, 20, 20),
+          child: Text(
+            'Offline 24h: $employeesOffline24Hours employees',
+            softWrap: true,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+        expanded: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 10, 20, 20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: employeeLines,
+          ),
+        ),
+      ),
     );
   }
 
@@ -140,14 +260,12 @@ class _CompanyPageState extends State<CompanyPage> {
       } else {
         if (_apiGoodData && _apiRetries < 8) {
           _apiRetries++;
-        } else if (apiResponse is ApiError){
+        } else if (apiResponse is ApiError) {
           _apiGoodData = false;
           _apiErrorType = apiResponse.errorId;
           _apiRetries = 0;
         }
       }
     });
-
   }
-
 }
