@@ -6,6 +6,7 @@ import 'package:torn_pda/models/chaining/attack_model.dart';
 import 'package:torn_pda/models/chaining/bars_model.dart';
 import 'package:torn_pda/models/chaining/chain_model.dart';
 import 'package:torn_pda/models/chaining/target_model.dart';
+import 'package:torn_pda/models/company/company_model.dart';
 import 'package:torn_pda/models/education_model.dart';
 import 'package:torn_pda/models/friends/friend_model.dart';
 import 'package:torn_pda/models/items_model.dart';
@@ -16,6 +17,7 @@ import 'package:torn_pda/models/travel/travel_model.dart';
 enum ApiType {
   user,
   faction,
+  company,
   torn,
 }
 
@@ -31,13 +33,15 @@ enum ApiSelection {
   items,
   education,
   friends,
+  company,
 }
 
 class ApiError {
   int errorId;
   String errorReason;
-  ApiError({int errorId}) {
-    switch (errorId) {
+  ApiError({int id}) {
+    errorId = id;
+    switch (id) {
       case 0:
         errorReason = 'no connection';
         break;
@@ -97,6 +101,7 @@ class TornApiCaller {
   TornApiCaller.items(this.apiKey);
   TornApiCaller.education(this.apiKey);
   TornApiCaller.friends(this.apiKey, this.queryId);
+  TornApiCaller.company(this.apiKey);
 
   Future<dynamic> get getTravel async {
     dynamic apiResult;
@@ -262,6 +267,23 @@ class TornApiCaller {
     }
   }
 
+  Future<dynamic> get getCompany async {
+    dynamic apiResult;
+    await _apiCall(ApiType.company, apiSelection: ApiSelection.company)
+        .then((value) {
+      apiResult = value;
+    });
+    if (apiResult is http.Response) {
+      try {
+        return CompanyModel.fromJson(json.decode(apiResult.body));
+      } catch (e) {
+        return ApiError();
+      }
+    } else if (apiResult is ApiError) {
+      return apiResult;
+    }
+  }
+
   Future<dynamic> _apiCall(ApiType apiType,
       {String prefix, ApiSelection apiSelection}) async {
     String url = 'https://api.torn.com/';
@@ -271,6 +293,9 @@ class TornApiCaller {
         break;
       case ApiType.faction:
         url += 'faction/';
+        break;
+      case ApiType.company:
+        url += 'company/';
         break;
       case ApiType.torn:
         url += 'torn/';
@@ -311,6 +336,9 @@ class TornApiCaller {
       case ApiSelection.friends:
         url += '$prefix?selections=profile,discord';
         break;
+      case ApiSelection.company:
+        url += '?selections=detailed,profile,employees,newsfull,stock,timestamp';
+        break;
     }
     url += '&key=$apiKey';
 
@@ -322,17 +350,17 @@ class TornApiCaller {
         // Check if json is responding with errors
         var jsonResponse = json.decode(response.body);
         if (jsonResponse['error'] != null) {
-          return ApiError(errorId: jsonResponse['error']['code']);
+          return ApiError(id: jsonResponse['error']['code']);
         }
         // Otherwise, return a good json response
         return response;
       } else {
-        return ApiError(errorId: 0);
+        return ApiError(id: 0);
       }
     } on TimeoutException catch (e) {
-      return ApiError(errorId: 0);
+      return ApiError(id: 0);
     } catch (e) {
-      return ApiError(errorId: 0);
+      return ApiError(id: 0);
     }
   }
 }
