@@ -1844,10 +1844,18 @@ UserScript lala = UserScript(
 // @match        https://www.torn.com/jailview.php*
 // @match        https://www.torn.com/index.php?page=people*
 // @match        https://www.torn.com/*list.php*
-// @grant        GM_addStyle
 // ==/UserScript==
 
 'use strict';
+
+let GM_addStyle = function(s)
+{
+    let style = document.createElement("style");
+    style.type = "text/css";
+    style.innerHTML = s;
+    
+    document.head.appendChild(style);
+}
 
 // Class declarations
 /************************************** */
